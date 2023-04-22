@@ -21,7 +21,7 @@ fn main() {
     snake_vec.push(SnakeNode { x: 2, y: 5 });
 
     // variables :0
-    let display_arr: [[char; GAME_LENGTH as usize]; GAME_HEIGHT as usize] = [['~'; GAME_LENGTH as usize]; GAME_HEIGHT as usize];
+    let display_arr: [[char; GAME_LENGTH as usize]; GAME_HEIGHT as usize] = [['.'; GAME_LENGTH as usize]; GAME_HEIGHT as usize];
     let mut money = Money { x: GAME_LENGTH - 1, y: GAME_HEIGHT / 2 };
     let mut direction = Direction::Right;
     let mut eating = false;
@@ -53,9 +53,7 @@ fn main() {
 
         // checks if there was a key press
         if let Ok(val) = rx.try_recv() {
-            if !(val.get_opposite() == direction) {
-                direction = val;
-            }
+            direction = val;
         }
         
         // removes from the tail and adds to the head of the snake vector
@@ -228,16 +226,4 @@ enum Direction {
     Left,
     Right,
     None,
-}
-
-impl Direction {
-    fn get_opposite(self: &Self) -> Direction {
-        match self {
-            Direction::Up => Direction::Down,
-            Direction::Down => Direction::Up,
-            Direction::Left => Direction::Right,
-            Direction::Right => Direction::Left,
-            _ => {panic!("wtf")}
-        }
-    }
 }
