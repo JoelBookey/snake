@@ -1,38 +1,38 @@
 use ncurses::*;
 use rand::Rng;
-use std::{char, thread, time};
-use std::sync::mpsc;
+use std::{char, thread, time, sync::mpsc};
 
 fn main() {
-    /* Setup ncurses. */
+    // Setup ncurses
     initscr();
     raw();
-
-    keypad(stdscr(), true);
-    noecho();
+    noecho(); 
     
-    let time_per_tile = time::Duration::from_millis(200); 
-    let game_length = 20;
-    let game_height = 10;
+    // create game consts
+    const TIME_PER_TILE: time::Duration = time::Duration::from_millis(200); 
+    const GAME_LENGTH: i32 = 20;
+    const GAME_HEIGHT: i32 = 10;
+
+    // creates vector of snake nodes and pushes starting snake nodes
     let mut snake_vec: Vec<SnakeNode> = Vec::new();
     snake_vec.push(SnakeNode { x: 5, y: 5 });
     snake_vec.push(SnakeNode { x: 4, y: 5 });
     snake_vec.push(SnakeNode { x: 3, y: 5 });
     snake_vec.push(SnakeNode { x: 2, y: 5 });
-    snake_vec.push(SnakeNode { x: 1, y: 5 });
-    let mut display_vec: Vec<char> = Vec::new();
-    for _ in 0..game_height {
-        for _ in 0..game_length {
-            display_vec.push('·');
-        }
-    }
-    let mut money = Money { x: game_length - 1, y: game_height / 2 };
+
+    // variables :0
+    let display_arr: [[char; GAME_LENGTH as usize]; GAME_HEIGHT as usize] = [['.'; GAME_LENGTH as usize]; GAME_HEIGHT as usize];
+    let mut money = Money { x: GAME_LENGTH - 1, y: GAME_HEIGHT / 2 };
     let mut direction = Direction::Right;
     let mut eating = false;
     let mut rng = rand::thread_rng();
     let mut death = false;
-
+    
+    // creates channel to send key inputs
     let (tx, rx) = mpsc::channel();
+
+    // creates thread that loops checking for characters which matches to a direction enum before
+    // sending it
     thread::spawn(move || loop {
         let mut val = Direction::None;
         while val == Direction::None {
@@ -48,13 +48,15 @@ fn main() {
         tx.send(val).expect("could not send value");
     });
 
+    // main game loop
     loop {
+
+        // checks if there was a key press
         if let Ok(val) = rx.try_recv() {
             direction = val;
         }
-
-        clear();
-
+        
+        // removes from the tail and adds to the head of the snake vector
         let new_snake_node = match direction {
             Direction::Up => SnakeNode {
                 x: snake_vec[0].x,
@@ -74,72 +76,96 @@ fn main() {
             },
             _ => {panic!("unexpected direction")}
         };
-        if new_snake_node.x > game_length
+
+        // if snake is exiting the borders or collides with itself then the snake dies
+        if new_snake_node.x > GAME_LENGTH
             || new_snake_node.x <= 0
-            || new_snake_node.y > game_height
+            || new_snake_node.y > GAME_HEIGHT
             || new_snake_node.y <= 0
             || does_snake_die(&snake_vec)
         {
             death = true;
         
         } else {
-            if !eating {
-                snake_vec.pop();
-            } else {
+            // if the snake ate the money then the snake node is added to the front but none is
+            // removed from the back
+            if eating {
                 eating = false;
+            } else {
+                snake_vec.pop();
             }
             snake_vec.insert(0, new_snake_node);
+
+            // if snake eats then generate new food and eaiting = true
             if yum_yum(&snake_vec, &money) {
                 eating = true;
                 let mut values: Vec<(i32, i32)> = Vec::new();
                 for node in &snake_vec {
                     values.push((node.x, node.y));
                 }
-                let mut new_x = rng.gen_range(1..=game_length);
-                let mut new_y = rng.gen_range(1..=game_height);
+                let mut new_x = rng.gen_range(1..=GAME_LENGTH);
+                let mut new_y = rng.gen_range(1..=GAME_HEIGHT);
                 while is_in_vec(&(new_x, new_y), &values) {
-                    new_x = rng.gen_range(1..=game_length);
-                    new_y = rng.gen_range(1..=game_height);
+                    new_x = rng.gen_range(1..=GAME_LENGTH);
+                    new_y = rng.gen_range(1..=GAME_HEIGHT);
                 }
                 money = Money { x: new_x, y: new_y };
             }
         }
-        addstr(format!("{:?}\nScore: {}\n", direction, snake_vec.len()).as_ref());
-        let print_out = &mut snake_to_display(&display_vec, &snake_vec);
-        print_out[(((money.y - 1) * game_length + money.x) - 1) as usize] = '$';
+        // displays score and direction
+        addstr(format!("{:?}\nScore: {}\n", direction, snake_vec.len() - 4).as_ref());
 
-        addstr(format!("{}\n", "-".repeat((game_length + 2) as usize)).as_ref());
-        for number in 1..=game_height {
-            let num_1 = ((number - 1) * game_length) as usize;
-            let num_2 = (number * game_length) as usize;
-            addstr(format!("|{}|\n", print_out[num_1..num_2].iter().collect::<String>()).as_ref());
+        // creates array using function and adds the food yum yum!!!
+        let print_out = &mut snake_to_display(&display_arr, &snake_vec);
+        print_out[(money.y - 1) as usize][(money.x - 1) as usize] = '$';
+        
+        // displays top border
+        addstr(format!("{}\n", "-".repeat((GAME_LENGTH + 2) as usize)).as_ref());
+
+        // loops through the 2d array and collects each 1d arrray into a string and displays it
+        for number in 1..=GAME_HEIGHT {
+            let num_1 = (number - 1) as usize;
+            addstr(format!("|{}|\n", print_out[num_1].iter().collect::<String>()).as_ref());
         }
-        addstr(format!("{}\n", "-".repeat((game_length + 2) as usize)).as_ref());
-        /* Refresh, showing the previous message. */
+
+        // displays bottom order
+        addstr(format!("{}\n", "-".repeat((GAME_LENGTH + 2) as usize)).as_ref());
+        
+        // refresh display
         refresh();
-        thread::sleep(time_per_tile);
+
+        // sleeps for the time per tile
+        thread::sleep(TIME_PER_TILE);
+
+        // if the snake died then display "you died" then waits for one last character input before
+        // breaking the loop
         if death {
             addstr("You Died");
             refresh();
             getch();
             break;
         }
+        
+        // clears the screen for the next iteration of the loop
+        clear();
     }
+
+    // once the loop is broken the "window" is stopped
     endwin();
 }
 
-#[derive(Debug)]
+// defo don't need these as two structs but i thought it would make it look nicer
 struct SnakeNode {
     x: i32,
     y: i32,
 }
 
-#[derive(Debug)]
 struct Money {
     x: i32,
     y: i32,
 }
 
+// this functions is for making sure the food doesn't spawin in the snake
 fn is_in_vec(values: &(i32, i32), vec: &Vec<(i32, i32)>) -> bool {
     for vec_thing in vec.iter() {
         if values == vec_thing {
@@ -149,22 +175,25 @@ fn is_in_vec(values: &(i32, i32), vec: &Vec<(i32, i32)>) -> bool {
     return false;
 }
 
-fn snake_to_display(display_vec: &Vec<char>, snake_vec: &Vec<SnakeNode>) -> Vec<char> {
-    let mut new_vec = display_vec.clone();
+// clones display array then loops through the snake vector and replaces the respective '.' with '@' also the head of the snake values is saved so that at the end the head is a '&' 
+fn snake_to_display(display_arr: &[[char; 20]; 10], snake_vec: &Vec<SnakeNode>) -> [[char; 20]; 10] {
+    let mut new_arr = display_arr.clone();
     let mut first = true;
-    let mut first_node: usize = 69;
+    let mut first_node: (usize, usize) = (69, 420);
     for block_thing in snake_vec.iter() {
         if first {
-            first_node = (((block_thing.y - 1) * 20 + block_thing.x) - 1) as usize;
+            first_node = ((block_thing.y - 1) as usize, (block_thing.x - 1) as usize);
             first = false;
         } else {
-            new_vec[(((block_thing.y - 1) * 20 + block_thing.x) - 1) as usize] = '@';
+            new_arr[(block_thing.y - 1) as usize][(block_thing.x - 1) as usize] = '@';
         }
     }
-    new_vec[first_node] = '&';
-    new_vec
+    new_arr[first_node.0][first_node.1] = '&';
+    new_arr
 }
 
+// this is probably a really over engineered way of making sure non of the values in the snake
+// vector are the same
 fn does_snake_die(snake: &Vec<SnakeNode>) -> bool {
     let mut done_ur_mum: Vec<(i32, i32)> = Vec::new();
     for node in snake.iter() {
@@ -178,6 +207,7 @@ fn does_snake_die(snake: &Vec<SnakeNode>) -> bool {
     return false;
 }
 
+// if snake is colliding with food then YUM YUM!!!
 fn yum_yum(snake: &Vec<SnakeNode>, money: &Money) -> bool {
     for node in snake {
         if node.x == money.x && node.y == money.y {
@@ -187,6 +217,8 @@ fn yum_yum(snake: &Vec<SnakeNode>, money: &Money) -> bool {
     return false;
 }
 
+// enum for direction (duh) and it derives debug in order to display the direction of the snake and
+// it derives partialEq so that you can use it in an if statement
 #[derive(Debug, PartialEq)]
 enum Direction {
     Up,
