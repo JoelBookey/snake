@@ -12,13 +12,13 @@ fn main() {
     const TIME_PER_TILE: time::Duration = time::Duration::from_millis(200); 
     const GAME_LENGTH: i32 = 20;
     const GAME_HEIGHT: i32 = 10;
+    const STARTING_SNAKE: i32 = 4;
 
     // creates vector of snake nodes and pushes starting snake nodes
     let mut snake_vec: Vec<SnakeNode> = Vec::new();
-    snake_vec.push(SnakeNode { x: 5, y: 5 });
-    snake_vec.push(SnakeNode { x: 4, y: 5 });
-    snake_vec.push(SnakeNode { x: 3, y: 5 });
-    snake_vec.push(SnakeNode { x: 2, y: 5 });
+    for num in (1..=STARTING_SNAKE).rev() {
+        snake_vec.push(SnakeNode { x: num, y: GAME_HEIGHT / 2});
+    }
 
     // variables :0
     let display_arr: [[char; GAME_LENGTH as usize]; GAME_HEIGHT as usize] = [['~'; GAME_LENGTH as usize]; GAME_HEIGHT as usize];
@@ -27,7 +27,8 @@ fn main() {
     let mut eating = false;
     let mut rng = rand::thread_rng();
     let mut death = false;
-    
+    let mut input_vec: Vec<Direction> = Vec::new();
+
     // creates channel to send key inputs
     let (tx, rx) = mpsc::channel();
 
@@ -50,11 +51,22 @@ fn main() {
 
     // main game loop
     loop {
+       
+        // adds all the inputs to vector
+        // this is to stop all the inputs from stacking and instead accepts the first input you
+        // pressed in the 'time per tile'
+        while let Ok(val) = rx.try_recv() {
+            input_vec.push(val.clone());
+        }
 
-        // checks if there was a key press
-        if let Ok(val) = rx.try_recv() {
-            if !(val.get_opposite() == direction) {
-                direction = val;
+        if !input_vec.is_empty() {
+            let new_direction = input_vec[0].clone();
+            if !(new_direction == direction.get_opposite()) && !(direction == new_direction) {
+                direction = new_direction;
+            }    
+            input_vec.remove(0);
+            if input_vec.len() > 2 {
+                input_vec.pop();
             }
         }
         
@@ -115,7 +127,7 @@ fn main() {
             }
         }
         // displays score and direction
-        addstr(format!("{:?}\nScore: {}\n", direction, snake_vec.len() - 4).as_ref());
+        addstr(format!("Score: {}\n", snake_vec.len() - 4).as_ref());
 
         // creates array using function and adds the food yum yum!!!
         let print_out = &mut snake_to_display(&display_arr, &snake_vec);
@@ -221,7 +233,7 @@ fn yum_yum(snake: &Vec<SnakeNode>, money: &Money) -> bool {
 
 // enum for direction (duh) and it derives debug in order to display the direction of the snake and
 // it derives partialEq so that you can use it in an if statement
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 enum Direction {
     Up,
     Down,
